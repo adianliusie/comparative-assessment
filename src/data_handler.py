@@ -102,6 +102,50 @@ class DataHandler:
                     #    outputs.append(ex)
         return outputs
 
+    def comparative_texts_topicalchat(self, score_type):
+        outputs = []
+        for doc in self.documents:
+            num_response = len(doc.responses)
+            context = doc.context
+            fact = doc.fact
+            for i in range(num_response):
+                for j in range(num_response):
+                    # skip the same document
+                    if i == j: continue
+
+                    # create input text by filling in template
+                    response_A = doc.responses[i]
+                    response_B = doc.responses[j]
+
+                    input_text = self.prompt_template.replace("<fact>", doc.fact)
+                    input_text = input_text.replace("<context>", doc.context)
+                    input_text = input_text.replace("<response_A>", response_A)
+                    input_text = input_text.replace("<response_B>", response_B)
+
+                    # get label based on which summary is more fluent
+                    score_1 = doc.scores[score_type][i]
+                    score_2 = doc.scores[score_type][j]
+                    score_diff = score_1-score_2
+
+                    if   score_diff  > 0: label = 0
+                    elif score_diff  < 0: label = 1
+                    elif score_diff == 0: label = -1
+
+                    # create example
+                    ex_id = str(doc.dialogue_id) + '-' + str(i) + '-' + str(j)
+                    ex = SimpleNamespace(
+                        ex_id=ex_id,
+                        input_text=input_text,
+                        label=label,
+                        score_diff=score_diff
+                    )
+
+                    outputs.append(ex)
+                    # add to outputs provided scores are not the same
+                    # if score_1 != score_2:
+                    #    outputs.append(ex)
+        return outputs
+
     def fill_template(self, text_info):
         text = self.prompt_template
         if '<context>' in text:

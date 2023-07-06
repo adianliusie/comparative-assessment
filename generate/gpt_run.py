@@ -34,7 +34,10 @@ def main(
     # get input text data to feed to chatgpt
     data_handler = DataHandler(prompt_template, dataset=dataset)
     if ranking:
-        proc_inputs = data_handler.comparative_texts(score_type)
+        if dataset == 'summeval':
+            proc_inputs = data_handler.comparative_texts(score_type)
+        elif dataset == 'topicalchat':
+            proc_inputs = data_handler.comparative_texts_topicalchat(score_type)
     else:
         if dataset == 'summeval':
             proc_inputs = data_handler.scoring_texts(score_type)
@@ -136,13 +139,26 @@ response: <response>
 
 Score:"""
 
+    elif prompt_num == 8:
+        assert (ranking == True) and (score_type=='use_knowledge')
+        prompt_template = """Given the "fact" that a "response" of the "dialogue" is conditioned on, which of the two "response" are more grounded to the fact?
+Note that a grounded response means it uses the fact well, a not grounded response means it does not mention or refer to the fact at all
+Output only either "response A" or "response B"
+
+fact: <fact>
+dialogue: <context>
+response A: <response_A>
+response B: <response_B>
+
+Answer:"""
+
     return prompt_template
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser = add_arguments(parser)
     kwargs = vars(parser.parse_args())
-    for counter in range(1, 5):
+    for counter in range(1, 10):
         try:
             main(**kwargs)
         except (openai.error.RateLimitError, openai.error.ServiceUnavailableError, openai.error.APIError):
