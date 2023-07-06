@@ -1,0 +1,10 @@
+Given the "fact" that a "response" of the "dialogue" is conditioned on, which of the two "response" are more grounded to the fact?
+Note that a grounded response means it uses the fact well, a not grounded response means it does not mention or refer to the fact at all
+Output only either "response A" or "response B"
+
+fact: <fact>
+dialogue: <context>
+response A: <response_A>
+response B: <response_B>
+
+Answer:

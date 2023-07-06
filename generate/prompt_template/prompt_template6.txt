@@ -1,0 +1,7 @@
+Score the following summary given the corresponding article with respect to consistency from 1 to 10. Note that consistency measures how much information included in the summary is present in the source article. 10 points indicate the summary contains only statements that are entailed by the source document
+
+Summary:<summary_1>
+
+Source Article:<context>
+
+Marks:
