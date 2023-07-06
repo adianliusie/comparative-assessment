@@ -98,13 +98,8 @@ class DataHandler:
             documents = cls.load_summeval()
         elif dataset=='summeval-s':
             documents = cls.load_summeval()[:20]
-        elif dataset=='summeval-s-old':
-            documents = cls.load_summeval()[:50]
-            for doc in documents:
-                doc.machine_summaries = doc.machine_summaries[:8]
-                for k in doc.scores.keys():
-                    doc.scores[k] = doc.scores[k][:8]
-            documents = documents
+        elif dataset=='summeval-t':
+            documents = cls.load_summeval()[:5]
         return documents
     
     @staticmethod
@@ -113,9 +108,6 @@ class DataHandler:
         data = []
         summ_eval = load_dataset('mteb/summeval')['test']
         for k, row in enumerate(summ_eval):
-            passage = row['text']
-            coherence_scores = row['coherence']
-            fluency_scores = row['fluency']
             ex = SimpleNamespace(
                 passage_id=str(k),
                 passage=row['text'],

@@ -1,9 +1,14 @@
 import openai
+import os
+import time
+
+from types import SimpleNamespace
 
 openai.organization = "org-DlbzLzT5CDhoGm9GuaIkleGI"
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 class ChatGptInterface:
+    @classmethod
     def response(cls, input_text, top_k:int=None, do_sample:bool=False, max_new_tokens:int=None):
         temp = 1 if do_sample else 0
         output = openai.ChatCompletion.create(
@@ -15,5 +20,8 @@ class ChatGptInterface:
             temperature=temp, # 0.0 = deterministic
             max_tokens=max_new_tokens, # max_tokens is the generated one,
         )
-        return output
+
+        output_text = output.choices[0].message.content
+        time.sleep(0.2)
+        return SimpleNamespace(output_text=output_text)
     

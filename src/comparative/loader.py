@@ -1,93 +1,15 @@
 import os
 import scipy
 import numpy as np
+import re
 
 from collections import defaultdict
 from typing import Dict
 
-from src.utils import load_text_line
+from src.utils.general import load_text_line, load_json
 from src.data_handler import DataHandler
 
-
-class Evaluater:
-    @staticmethod
-    def load_comparative_labels(dataset:str, score_type:str='consistency'):
-        data_handler = DataHandler('', dataset)
-        data = data_handler.comparative_texts(score_type)
-        labels = {}
-        for ex in data:
-            labels[ex.ex_id] = ex.label
-        return dict(labels)
-    
-    @staticmethod
-    def load_ratings_labels(dataset:str, score_type:str='consistency'):
-        data_handler = DataHandler('', dataset)
-        data = data_handler.scoring_texts(score_type)
-        labels = defaultdict(dict)
-        for ex in data:
-            passage_id, ex_id = ex.ex_id.split('-')
-            labels[int(passage_id)][int(ex_id)] = ex.label
-        return dict(labels)
-    
-    @staticmethod
-    def calc_accuracy(comparisons, labels):
-        ex_ids = [k for k, v in labels.items() if v != -1]
-        print(len(labels), len(ex_ids))
-        hits = [(comparisons[ex_id] == labels[ex_id]) for ex_id in ex_ids]
-        correct = sum(hits) 
-        
-        unsure = 0.5*sum([1 for k, v in comparisons.items() if (v==-1) and (k in ex_ids)])
-        return 100*(correct + unsure)/len(ex_ids)
-    
-    @staticmethod
-    def calc_spearman(ratings:Dict[str, Dict[str, float]], labels:Dict[str, Dict[str, float]]):
-        spearmans = []
-        for passage_id in labels:
-            keys = labels[passage_id].keys()
-            true_scores = [labels[passage_id][k] for k in keys]
-            pred_scores = [ratings[passage_id][k] for k in keys]
-            s = scipy.stats.spearmanr(pred_scores, true_scores)[0]  
-            spearmans.append(s)
-        spearmans = [s for s in spearmans if not np.isnan(s)]
-        return 100*np.mean(spearmans)
-    
-    @staticmethod
-    def calc_pearson(ratings:Dict[str, Dict[str, float]], labels:Dict[str, Dict[str, float]]):
-        pearsons = []
-        for passage_id in labels:
-            keys = labels[passage_id].keys()
-            true_scores = [labels[passage_id][k] for k in keys]
-            pred_scores = [ratings[passage_id][k] for k in keys]
-            p = scipy.stats.pearsonr(pred_scores, true_scores)[0]  
-            pearsons.append(p)
-        pearsons = [p for p in pearsons if not np.isnan(p)]
-        return 100*np.mean(pearsons)
- 
-    @staticmethod
-    def calc_system_spearman(ratings:Dict[str, Dict[str, float]], labels:Dict[str, Dict[str, float]]):
-        def system_score(ratings, sys_id):
-            return np.mean([ratings[doc_id][sys_id] for doc_id in labels])
-                                   
-        system_ids = ratings[0].keys()                 
-        system_preds = [system_score(ratings, sys_id) for sys_id in system_ids]
-        system_labels = [system_score(labels, sys_id) for sys_id in system_ids]
-        
-        spearman = scipy.stats.spearmanr(system_preds, system_labels)[0]  
-        return 100*spearman
-    
-    @staticmethod
-    def calc_system_pearson(ratings:Dict[str, Dict[str, float]], labels:Dict[str, Dict[str, float]]):
-        def system_score(ratings, sys_id):
-            return np.mean([ratings[doc_id][sys_id] for doc_id in labels])
-                                   
-        system_ids = ratings[0].keys()                 
-        system_preds = [system_score(ratings, sys_id) for sys_id in system_ids]
-        system_labels = [system_score(labels, sys_id) for sys_id in system_ids]
-        
-        pearson = scipy.stats.pearsonr(system_preds, system_labels)[0]  
-        return 100*pearson
-    
-class MarkerLoader:
+class SystemLoader:
     def __init__(self, ratings_path=None, comparison_path=None):
         if ratings_path:
             self.load_ratings(ratings_path)
@@ -109,11 +31,12 @@ class MarkerLoader:
             file_path = os.path.join(path, file)
             
             #read contexts file and convert to float
-            score = load_text_line(file_path)[0]
+            output_text = load_json(file_path)['output_text']
+            score = re.split(r'\D+',output_text)[0]
             score = int(score) if score.isdigit() else -1 
-                
+
             #save to dictionary
-            ex_id = file.replace('.txt', '')
+            ex_id = file.replace('.json', '')
             passage_id, summary_id = ex_id.split('-')
             ratings[int(passage_id)][int(summary_id)] = score
             
@@ -123,31 +46,29 @@ class MarkerLoader:
         fails = sum([(v==-1) for doc in ratings.values() for v in doc.values() ])
         total = sum([1       for doc in ratings.values() for v in doc.values() ])
         print(f"loaded ratings with {fails} failures out of {total}")
-        
         return ratings
     
     def _load_comparisons(self, path)->Dict[str, int]:
         comparisons = {}
         # load the information from text files into a single dictionary
-        for file in os.listdir(path):
-            file_path = os.path.join(path, file)
-            output = load_text_line(file_path)            
-            
+        data = load_json(path)
+
+        for ex_id, output in data.items():
+            output_text = output['output_text']
             # determine which of A and B is preferred
-            if 'Summary A' in output and 'Summary B' not in output:
+            if (' A' in output_text) and (not ' B' in output_text):
                 score = 0
-            elif 'Summary B' in output and not 'Summary A' in output:
+            elif (' B' in output_text) and (not ' A' in output_text):
                 score = 1
             else:
                 score = -1
-            
+                
             # save to dictionary
-            ex_id = file.replace('.txt', '')
             comparisons[ex_id] = score
         
         # keep an eye on how often the scores were invalid
         fails = sum([(v==-1) for v in comparisons.values()])
-        total = sum([1       for v in comparisons.values()])
+        total = sum([1      for v in comparisons.values()])
         print(f"loaded ratings with {fails} failures out of {total}")
         
         comparisons = {k: v for k, v in sorted(comparisons.items())}
@@ -203,4 +124,43 @@ class MarkerLoader:
                 increase_rating(passage_id, ex_2_id, value=1)
 
         return dict(ratings)
+
+class ProbsSystemLoader(SystemLoader):
+    def __init__(self,comparison_path=None):
+        # load logits from comparisons
+        self.comparisons_logits = self._load_comparison_logits(comparison_path)
+        
+    def _load_comparison_logits(self, path):
+        comparisons_logits = {}
+        # load the information from text files into a single dictionary
+        data = load_json(path)
+
+        for ex_id, output in data.items():
+            output_logits = output['logits']
+
+            # save to dictionary
+            comparisons_logits[ex_id] = output_logits
+
+        comparisons_logits = {k: v for k, v in sorted(comparisons_logits.items())}
+        return comparisons_logits
     
+    def get_comparisons(self, alphas:np.ndarray=None):
+        if alphas is None: alphas=np.zeros(3)
+        comparisons = {}
+        for ex_id, logits in self.comparisons_logits.items():
+            weighted_logits = alphas + logits
+            pred = np.argmax(weighted_logits, axis=0)
+            comparisons[ex_id] = pred
+        return comparisons
+
+    def get_balanced_thresholds(self):
+        self.alphas = np.zeros(3)
+        logits_array = np.array(list(self.comparisons_logits.values()))
+
+        for a in np.arange(-3,3,0.01):
+            reweighted_logits = logits_array + np.array([[0,a,0]])
+            preds = np.argmax(reweighted_logits, axis=-1)
+            if np.mean(preds) >= 0.5:
+                break 
+
+        return np.array([0,a,0])
