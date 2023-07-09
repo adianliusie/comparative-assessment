@@ -1,0 +1,10 @@
+Give a score from 1 to 10 of the following task. Output only a number between 1 and 10.
+
+Given the "fact" that the "response" of the "dialogue" is conditioned on, how well does the response use that fact?
+Note that a score of 10 points means the response uses the fact well, while a score of 1 means the response does not mention or refer to the fact at all
+
+fact: <fact>
+dialogue: <context>
+response: <response>
+
+Score:

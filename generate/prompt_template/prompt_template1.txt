@@ -1,0 +1,11 @@
+Assess the following two summaries given the corresponding article, and determine which passage is more consistent.
+
+<context>
+
+Summary A: <summary_1>
+
+Summary B: <summary_2>
+
+Which Summary is more consistent relative to the passage, Summary A or Summary B?
+
+Answer:
