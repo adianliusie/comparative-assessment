@@ -36,7 +36,9 @@ class DataHandler:
                 ex = SimpleNamespace(
                     ex_id=ex_id,
                     input_text=input_text,
-                    label=label
+                    label=label, 
+                    response=response,
+                    reference=doc.reference,
                 )
                 outputs.append(ex)
         return outputs
@@ -124,6 +126,7 @@ class DataHandler:
                 context_id=str(k),
                 context=row['text'],
                 responses=row['machine_summaries'],
+                reference=row['human_summaries'][0],
                 scores={
                     'coherency':row['coherence'],
                     'fluency':row['fluency'],
