@@ -19,7 +19,7 @@ class DataHandler:
                 context = doc.context
                 response = doc.responses[k]
                 fact = getattr(doc, 'fact', None)
-                
+
                 # fill in the prompt template
                 text_info = SimpleNamespace(
                     context=context,
@@ -112,6 +112,9 @@ class DataHandler:
         elif dataset=='topicalchat':
             path = "/rds/project/rds-8YSp2LXTlkY/data/nlg_evaluation/topicalchat_usr/tc_usr_data.json"
             documents = cls.load_topicalchat(path)
+        elif dataset=='webnlg':
+            path = "/rds/project/rds-8YSp2LXTlkY/data/nlg_evaluation/data-to-text/webnlg.processed.json"
+            documents = cls.load_webnlg(path)
         return documents
 
     @staticmethod
@@ -155,6 +158,34 @@ class DataHandler:
                     'engagingness': [np.mean(x['Engaging']) for x in responses],
                     'groundedness': [np.mean(x['Uses Knowledge']) for x in responses],
                     'overall': [np.mean(x['Overall']) for x in responses],
+                }
+            )
+            output.append(ex)
+        return output
+
+    @staticmethod
+    def load_webnlg(path_to_json) -> List[SimpleNamespace]:
+        # dataset downloaded from https://github.com/ufal/nlgi_eval
+        # processed version: rds-altaslp-8YSp2LXTlkY/data/nlg_evaluation/data-to-text/webnlg.processed.json
+        with open(path_to_json, "r") as f:
+            x = f.read()
+        data = json.loads(x)
+        output = []
+        for k, row in data.items():
+            generated_texts, fluency, grammar, semantics = [], [], [], []
+            for system, value in row.items():
+                generated_texts.append(value['text'])
+                fluency.append(value['fluency'])
+                grammar.append(value['grammar'])
+                semantics.append(value['semantics'])
+            ex = SimpleNamespace(
+                context_id=str(k),
+                context=value['data'], # triples concatenated as string
+                responses=generated_texts,
+                scores={
+                    'fluency': fluency,
+                    'grammar': grammar,
+                    'semantics': semantics,
                 }
             )
             output.append(ex)
