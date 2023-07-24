@@ -10,12 +10,6 @@ from src.utils.general import load_text_line, load_json
 from src.data_handler import DataHandler
 
 class SystemLoader:
-    def __init__(self, ratings_path=None, comparison_path=None):
-        if ratings_path:
-            self.load_ratings(ratings_path)
-        elif comparison_path:
-            self.load_comparisons(comparison_path)
-
     def load_comparisons(self, path):
         self.comparisons = self._load_comparisons(path)
         self.ratings = self.comparisons_to_ratings(self.comparisons)
@@ -24,28 +18,35 @@ class SystemLoader:
         self.ratings = self._load_ratings(path)
         self.comparisons = self.ratings_to_comparisons(self.ratings)
     
-    #== Load Files by category ================================================#
+    def load_comparisons_logits(self, path, balanced=False):
+        comparison_logits = self._load_comparison_logits(path)
+        t = self.get_balanced_thresholds(comparison_logits) if balanced else None
+        self.comparisons = self.logits_to_comparisons(comparison_logits, t=t)
+        self.ratings = self.comparisons_to_ratings(self.comparisons)
+
+    #== Load Files by category =======================================================#
     def _load_ratings(self, path)->Dict[str, Dict[str, float]]:        
         ratings = defaultdict(dict)
-        for file in os.listdir(path):
-            file_path = os.path.join(path, file)
-            
-            #read contexts file and convert to float
-            output_text = load_json(file_path)['output_text']
+
+        data = load_json(path)
+
+        for ex_id, output in data.items():
+            output_text = output['output_text']
+
+            # extract numerical prediction
             score = re.split(r'\D+',output_text)[0]
             score = int(score) if score.isdigit() else -1 
 
-            #save to dictionary
-            ex_id = file.replace('.json', '')
+            # save to dictionary
             passage_id, summary_id = ex_id.split('-')
             ratings[int(passage_id)][int(summary_id)] = score
             
         ratings = dict(ratings)
         
-        # keep an eye on how often the scores were invalid
+        # check how often the scores were invalid
         fails = sum([(v==-1) for doc in ratings.values() for v in doc.values() ])
         total = sum([1       for doc in ratings.values() for v in doc.values() ])
-        print(f"loaded ratings with {fails} failures out of {total}")
+        #print(f"loaded ratings with {fails} failures out of {total}")
         return ratings
     
     def _load_comparisons(self, path)->Dict[str, int]:
@@ -66,16 +67,32 @@ class SystemLoader:
             # save to dictionary
             comparisons[ex_id] = score
         
-        # keep an eye on how often the scores were invalid
+        # check how often the scores were invalid
         fails = sum([(v==-1) for v in comparisons.values()])
         total = sum([1      for v in comparisons.values()])
         print(f"loaded ratings with {fails} failures out of {total}")
         
         comparisons = {k: v for k, v in sorted(comparisons.items())}
         return comparisons
-    
-    #== Methods to Convert ==================================================#
-    def ratings_to_comparisons(self, ratings):
+
+    @staticmethod
+    def _load_comparison_logits(path):
+        comparisons_logits = {}
+        # load the information from text files into a single dictionary
+        data = load_json(path)
+
+        #print('there is a fix in the code to ignore the neutral class')
+
+        for ex_id, output in data.items():
+            output_logits = output['logits'][:2]
+            comparisons_logits[ex_id] = output_logits
+
+        comparisons_logits = {k: v for k, v in sorted(comparisons_logits.items())}
+        return comparisons_logits
+
+    #== Methods to Convert ===========================================================#
+    @staticmethod
+    def ratings_to_comparisons(ratings):
         comparisons = defaultdict(dict)
         
         for passage_id in ratings:
@@ -101,7 +118,8 @@ class SystemLoader:
         comparisons = {k: v for k, v in sorted(comparisons.items())}
         return comparisons
 
-    def comparisons_to_ratings(self, comparisons):
+    @staticmethod
+    def comparisons_to_ratings(comparisons):
         ratings = defaultdict(dict)
         
         def increase_rating(passage_id:int, ex_id:int, value=1):
@@ -125,42 +143,26 @@ class SystemLoader:
 
         return dict(ratings)
 
-class ProbsSystemLoader(SystemLoader):
-    def __init__(self,comparison_path=None):
-        # load logits from comparisons
-        self.comparisons_logits = self._load_comparison_logits(comparison_path)
-        
-    def _load_comparison_logits(self, path):
-        comparisons_logits = {}
-        # load the information from text files into a single dictionary
-        data = load_json(path)
-
-        for ex_id, output in data.items():
-            output_logits = output['logits']
-
-            # save to dictionary
-            comparisons_logits[ex_id] = output_logits
-
-        comparisons_logits = {k: v for k, v in sorted(comparisons_logits.items())}
-        return comparisons_logits
-    
-    def get_comparisons(self, alphas:np.ndarray=None):
-        if alphas is None: alphas=np.zeros(3)
+    #== Methods dealing with prompt-based classifier =================================#
+    @staticmethod
+    def logits_to_comparisons(comparisons_logits, t:np.ndarray=None):
+        if t is None: t=0
         comparisons = {}
-        for ex_id, logits in self.comparisons_logits.items():
-            weighted_logits = alphas + logits
+        for ex_id, logits in comparisons_logits.items():
+            weighted_logits = logits + np.array([0,t])
+            #print(weighted_logits)
+            #import time; time.sleep(2)
             pred = np.argmax(weighted_logits, axis=0)
             comparisons[ex_id] = pred
         return comparisons
 
-    def get_balanced_thresholds(self):
-        self.alphas = np.zeros(3)
-        logits_array = np.array(list(self.comparisons_logits.values()))
+    @staticmethod
+    def get_balanced_thresholds(comparisons_logits):
+        logits_array = np.array(list(comparisons_logits.values()))
 
-        for a in np.arange(-3,3,0.01):
-            reweighted_logits = logits_array + np.array([[0,a,0]])
+        for t in np.arange(-5,5,0.01):
+            reweighted_logits = logits_array + np.array([[0,t]])
             preds = np.argmax(reweighted_logits, axis=-1)
             if np.mean(preds) >= 0.5:
                 break 
-
-        return np.array([0,a,0])
+        return t

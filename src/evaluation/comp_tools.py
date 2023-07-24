@@ -8,7 +8,6 @@ from scipy.linalg import solve
 def comparatisons_to_tensors(comparisons)->Tuple[np.ndarray, np.ndarray]:
     num_examples = max([int(i.split('-')[0]) for i in comparisons.keys()])+1
     num_cands    = max([int(i.split('-')[1]) for i in comparisons.keys()])+1
-
     C_tensor = np.zeros((num_examples, num_cands, num_cands))
     M_tensor = np.zeros((num_examples, num_cands, num_cands))
     for k, v in comparisons.items():
@@ -28,7 +27,7 @@ def comparatisons_to_tensors(comparisons)->Tuple[np.ndarray, np.ndarray]:
 def matrices_to_scores(C_tensor:np.ndarray, M_tensor:np.ndarray):
     output_ranks = []
     for C, M in zip(C_tensor, M_tensor):
-        ranks = colley_scoring(C, M)
+        ranks = win_ratio(C, M)
         output_ranks.append(ranks)
     return output_ranks
 

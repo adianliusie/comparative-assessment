@@ -1,7 +1,0 @@
-Determine a score between 1 and 100 for how consistent the following summary is with respect to the article
-
-Source Article:<context>
-
-Summary:<summary_1>
-
-Score:

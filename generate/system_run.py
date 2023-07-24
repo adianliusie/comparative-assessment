@@ -11,7 +11,8 @@ from datetime import datetime
 from src.data_handler import DataHandler
 from src.utils.general import save_json, load_json
 from src.models import load_interface
-from src.models.prompts import get_prompt_template
+from src.prompts.load_prompt import get_prompt_template
+from src.utils.post_processing import save_combined_json, delete_leftover_files
 
 import time
 # python system_run.py --output-path output_texts/falcon-7b/summeval-consistency/prompt_c1 --system falcon-7b --dataset summeval-s --score consistency --prompt-id c1 --shuffle --comparative
@@ -26,23 +27,40 @@ def main(
     prompt_id:int='c1',
     shuffle:bool=True,
     comparative=False,
-    max_len=None
+    max_len=None,
+    device=None,
+    probs=False
 ):
+    print(output_path)
+
     #load prompt from default, or choose your own prompt
-    assert ('comparative' in prompt_id) == comparative
+    assert ('c' in prompt_id) == comparative
     prompt_template = get_prompt_template(prompt_id, score_type)
-    
+    if dataset == 'topicalchat':
+        prompt_template = prompt_template.replace('Summary', 'Response')
+        prompt_template = prompt_template.replace('summary', 'response')
+        prompt_template = prompt_template.replace('Passage', 'Dialogue')
+        prompt_template = prompt_template.replace('passage', 'dialogue')
+
     # get input text data to feed to chatgpt
     data_handler = DataHandler(prompt_template, dataset=dataset)
     if comparative:
         proc_inputs = data_handler.comparative_texts(score_type)
     else:
         proc_inputs = data_handler.scoring_texts(score_type)
-    
+
     # create directory if not already existing
     system_output_path = f"{output_path}/outputs"
     if not os.path.isdir(system_output_path):
         os.makedirs(system_output_path)   
+
+    # select the model to run the inputs through
+    interface = load_interface(system=system, device=device)
+    
+    # set decoder_prefix (only used for prob mode) 
+    decoder_prefix='Summary'
+    if (dataset == 'topicalchat') and (probs) and ('flant5' in system):
+        decoder_prefix='Response'
 
     # save experiment settings 
     info = {
@@ -71,22 +89,31 @@ def main(
     if os.path.isfile(f"{system_output_path}/combined.json"):
         done_ids = set(list(load_json(f"{system_output_path}/combined.json").keys()))
 
-    # select the model to run the inputs through
-    interface = load_interface(system=system)
-
     # process all inputs to chatgpt
     for idx in ids:
         ex = proc_inputs[idx]
-        outpath = f"{output_path}/outputs/{ex.ex_id}.json"
+        outpath = f"{system_output_path}/{ex.ex_id}.json"
 
         # skip outputs already computed
         if (os.path.isfile(outpath)) or (ex.ex_id in done_ids):
             continue
         
-        # Get LLM outputs
-        response = interface.response(input_text=ex.input_text, 
-                                      do_sample=False,
-                                      max_new_tokens=max_len)
+        # get text response
+        # print(ex.input_text)
+        if probs:
+            response = interface.prompt_template_response(
+                input_text=ex.input_text, 
+                decoder_prefix=decoder_prefix
+            )
+        else:
+            response = interface.text_response(
+                input_text=ex.input_text, 
+                do_sample=False,
+                max_new_tokens=max_len
+            )            
+
+        #print(response)
+        #import time; time.sleep(2)
 
         # get and print generated text
         gen_text = response.output_text
@@ -99,17 +126,27 @@ def main(
         # with open(outpath, "w") as f:
         #     f.write(gen_text)
 
+    save_combined_json(system_output_path)  
+    delete_leftover_files(system_output_path)
+
 def generation_parser():
     """ Build Argument Parser """
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-path', type=str, required=True, help='where to save chatgpt outputs')
-    parser.add_argument('--system', type=str, default='falcon-7b', help='which transformer to use')
-    parser.add_argument('--dataset', type=str, default='summeval-s', help='which evaluation dataset to use')
+    
+    parser.add_argument('--system', type=str, default='flant5-large', help='which transformer to use')
+    parser.add_argument('--probs', action='store_true', help='whether prompt templates should be used')
+    parser.add_argument('--prompt-id', type=str, default='c1', help='which prompt to use')
+
+    parser.add_argument('--dataset', type=str, default='summeval', help='which evaluation dataset to use')
     parser.add_argument('--score-type', type=str, default='consistency', help='which score to use of the dataset')
+    
+    parser.add_argument('--max-len', type=int, default=10, help='number of maximum tokens to be generated')
+    parser.add_argument('--device', type=str, default=None, help='device to run experiments')
+
     parser.add_argument('--shuffle', action='store_true', help='whether to shuffling order of samples')
     parser.add_argument('--comparative', action='store_true', help='whether to do comparative evaluation')
-    parser.add_argument('--prompt-id', type=str, default='c1', help='which prompt to use')
-    parser.add_argument('--max-len', type=int, default=10, help='number of maximum tokens to be generated')
+    
     return parser
 
 # def get_default_template(prompt_num, comparative, score_type):
@@ -136,10 +173,12 @@ def generation_parser():
 if __name__ == "__main__":
     parser = generation_parser()
     kwargs = vars(parser.parse_args())
-    for counter in range(1, 5):
-        try:
-            main(**kwargs)
-        except openai.error.RateLimitError:
-            print("openai.error.RateLimitError... #{}".format(counter))
-            print("restart in 10 seconds")
-            time.sleep(10)
+    main(**kwargs)
+
+    # for counter in range(1, 5):
+    #     try:
+    #         main(**kwargs)
+    #     except openai.error.RateLimitError:
+    #         print("openai.error.RateLimitError... #{}".format(counter))
+    #         print("restart in 10 seconds")
+    #         time.sleep(10)

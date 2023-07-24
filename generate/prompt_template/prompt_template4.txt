@@ -1,7 +1,0 @@
-Score the following summary given the corresponding article with respect to consistency from 1 to 10.
-
-Summary:<summary_1>
-
-Source Article:<context>
-
-Marks:
