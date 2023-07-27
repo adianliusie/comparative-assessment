@@ -1,6 +1,7 @@
 import json
 import pickle
 import os 
+import re
 
 from pathlib import Path
 
@@ -13,6 +14,15 @@ def load_json(path:str)->dict:
     with open(path) as jsonFile:
         data = json.load(jsonFile)
     return data
+
+def load_json_files(file_path):
+    """ save as above, but when multi-line json"""
+    output = []
+    with open(file_path, 'r') as file:
+        for line in file:
+            json_data = json.loads(line)
+            output.append(json_data)
+    return output
 
 def save_pickle(data, path:str):
     with open(path, 'wb') as output:
@@ -27,6 +37,13 @@ def load_text_line(path:str)->str:
     with open(path, 'r') as f:
         output = f.readline()
     return output
+
+#== Reading and converting text files =======================================
+def get_initial_float(s):
+    match = re.match(r"[-+]?(\d+(\.\d*)?|\.\d+)", s)
+    if match:
+        return float(match.group())
+    return None
 
 #== Location utils ==========================================================
 def _join_paths(base_path:str, relative_path:str):

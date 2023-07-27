@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from .loader import SystemLoader
 from .eval_tools import Evaluater
-from .comp_tools import comparatisons_to_tensors, matrices_to_scores
+from ..comparative.tools import comparatisons_to_tensors, matrices_to_scores
 
 # def evaluate_comparisons(comparisons, dataset, score_type):
 #     C_tensor, M_tensor = comparatisons_to_tensors(comparisons)
@@ -55,7 +55,7 @@ def load_system(path:str, balanced:bool=False)->SystemLoader:
         system.load_comparisons_logits(path, balanced=balanced)
     else:
         system.load_comparisons(path)
-    return system 
+    return system
 
 def system_evaluation(path:str, dataset:str, score_type:str, balanced=False):
     system = load_system(path, balanced)

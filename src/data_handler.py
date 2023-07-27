@@ -1,9 +1,13 @@
 import json
+import os
 import numpy as np
+
 from datasets import load_dataset
 from types import SimpleNamespace
 from typing import List
 from functools import lru_cache
+
+from .utils.general import load_json_files
 
 class DataHandler:
     def __init__(self, prompt_template:str, dataset:str='summeval'):
@@ -26,7 +30,9 @@ class DataHandler:
                     response_A=response,
                     fact=fact
                 )
-                input_text = self.fill_template(text_info)
+                
+                # get prompt input text
+                input_text = self.fill_template(text_info) if self.prompt_template else None
 
                 # get labels for scoring
                 label = doc.scores[score_type][k]
@@ -38,7 +44,7 @@ class DataHandler:
                     input_text=input_text,
                     label=label, 
                     response=response,
-                    reference=doc.reference,
+                    reference=getattr(doc, 'reference', None),
                 )
                 outputs.append(ex)
         return outputs
@@ -112,11 +118,13 @@ class DataHandler:
         elif dataset=='summeval-t':
             documents = cls.load_summeval()[:5]
         elif dataset=='topicalchat':
-            path = "/rds/project/rds-8YSp2LXTlkY/data/nlg_evaluation/topicalchat_usr/tc_usr_data.json"
-            documents = cls.load_topicalchat(path)
+            documents = cls.load_topicalchat()
         elif dataset=='webnlg':
-            path = "/rds/project/rds-8YSp2LXTlkY/data/nlg_evaluation/data-to-text/webnlg.processed.json"
-            documents = cls.load_webnlg(path)
+            documents = cls.load_webnlg()
+        elif dataset=='wi-train':
+            documents = cls.load_write_and_improve(split='train')
+        elif dataset=='wi-dev':
+            documents = cls.load_write_and_improve(split='dev')
         return documents
 
     @staticmethod
@@ -141,11 +149,12 @@ class DataHandler:
         return output
 
     @staticmethod
-    def load_topicalchat(path_to_json) -> List[SimpleNamespace]:
-        # rds-altaslp-8YSp2LXTlkY/data/nlg_evaluation/topicalchat_usr/tc_usr_data.json
-        with open(path_to_json, "r") as f:
+    def load_topicalchat() -> List[SimpleNamespace]:
+        data_path = "/rds/project/rds-8YSp2LXTlkY/data/nlg_evaluation/topicalchat_usr/tc_usr_data.json"
+        with open(data_path, "r") as f:
             x = f.read()
         data = json.loads(x)
+
         output = []
         for k, row in enumerate(data):
             responses = row['responses']
@@ -167,12 +176,13 @@ class DataHandler:
         return output
 
     @staticmethod
-    def load_webnlg(path_to_json) -> List[SimpleNamespace]:
+    def load_webnlg() -> List[SimpleNamespace]:
         # dataset downloaded from https://github.com/ufal/nlgi_eval
-        # processed version: rds-altaslp-8YSp2LXTlkY/data/nlg_evaluation/data-to-text/webnlg.processed.json
-        with open(path_to_json, "r") as f:
+        data_path = "/rds/project/rds-8YSp2LXTlkY/data/nlg_evaluation/data-to-text/webnlg.processed.json"
+        with open(data_path, "r") as f:
             x = f.read()
         data = json.loads(x)
+
         output = []
         for k, row in data.items():
             generated_texts, fluency, grammar, semantics = [], [], [], []
@@ -181,6 +191,7 @@ class DataHandler:
                 fluency.append(value['fluency'])
                 grammar.append(value['grammar'])
                 semantics.append(value['semantics'])
+            
             ex = SimpleNamespace(
                 context_id=str(k),
                 context=value['data'], # triples concatenated as string
@@ -193,3 +204,27 @@ class DataHandler:
             )
             output.append(ex)
         return output
+
+    @staticmethod
+    def load_write_and_improve(split='train') -> List[SimpleNamespace]:
+        base_path = "/rds/project/rds-8YSp2LXTlkY/data/nlg_evaluation/write-improve"
+
+        paths = [os.path.join(base_path, f"{level}.{split}.json") for level in ['A', 'B', 'C']]
+        jsons = [load_json_files(path) for path in paths]
+        data = [ex for json in jsons for ex in json]
+
+        responses = [ex['text'] for ex in data]
+        raw_scores = [ex['cefr'] for ex in data]
+
+        cefr_to_scores = {cefr:k for k, cefr in enumerate(sorted(list(set(raw_scores))))}
+        scores = [cefr_to_scores[score] for score in raw_scores]
+
+        out = SimpleNamespace(
+                context_id='0',
+                context=None, 
+                responses=responses, 
+                scores={'overall':scores,
+                        'raw':raw_scores}
+        )
+        
+        return [out]

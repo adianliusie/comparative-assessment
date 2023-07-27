@@ -67,7 +67,7 @@ class FlanT5Interface:
         )
         
         vocab_logits = output.logits[:,-1]
-        #self.debug_output_logits(vocab_logits)
+        #self.debug_output_logits(input_text, vocab_logits)
 
         class_logits = vocab_logits[0, tuple(self.label_ids)]
         raw_class_probs = F.softmax(vocab_logits, dim=-1)[0, tuple(self.label_ids)]
@@ -82,12 +82,16 @@ class FlanT5Interface:
             raw_probs=[float(i) for i in raw_class_probs]
         )
     
-    def debug_output_logits(self, logits):
+    def debug_output_logits(self, input_text, logits):
         # Debug function to see what outputs would be
         indices = logits.topk(k=5).indices[0]
+        print(input_text)
+        print('\n')
         print(self.label_ids)
         print(indices)
         print(self.tokenizer.decode(indices))
+        print('\n\n')
+        import time; time.sleep(1)
 
     #== Setup methods =============================================================================#
     def set_up_prompt_classifier(self, decoder_prefix='Summary'):

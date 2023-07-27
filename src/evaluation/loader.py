@@ -10,22 +10,23 @@ from src.utils.general import load_text_line, load_json
 from src.data_handler import DataHandler
 
 class SystemLoader:
-    def load_comparisons(self, path):
-        self.comparisons = self._load_comparisons(path)
-        self.ratings = self.comparisons_to_ratings(self.comparisons)
-
     def load_ratings(self, path):
         self.ratings = self._load_ratings(path)
         self.comparisons = self.ratings_to_comparisons(self.ratings)
     
-    def load_comparisons_logits(self, path, balanced=False):
-        comparison_logits = self._load_comparison_logits(path)
+    def load_comparisons(self, path, lim=None):
+        self.comparisons = self._load_comparisons(path, lim=lim)
+        self.ratings = self.comparisons_to_ratings(self.comparisons)
+
+    def load_comparisons_logits(self, path, lim=None, balanced=False):
+        comparison_logits = self._load_comparison_logits(path, lim=lim)
         t = self.get_balanced_thresholds(comparison_logits) if balanced else None
         self.comparisons = self.logits_to_comparisons(comparison_logits, t=t)
         self.ratings = self.comparisons_to_ratings(self.comparisons)
 
     #== Load Files by category =======================================================#
-    def _load_ratings(self, path)->Dict[str, Dict[str, float]]:        
+    @staticmethod
+    def _load_ratings(path)->Dict[str, Dict[str, float]]:        
         ratings = defaultdict(dict)
 
         data = load_json(path)
@@ -49,7 +50,8 @@ class SystemLoader:
         #print(f"loaded ratings with {fails} failures out of {total}")
         return ratings
     
-    def _load_comparisons(self, path)->Dict[str, int]:
+    @staticmethod
+    def _load_comparisons(path:str, lim:int=None)->Dict[str, int]:
         comparisons = {}
         # load the information from text files into a single dictionary
         data = load_json(path)
@@ -76,7 +78,7 @@ class SystemLoader:
         return comparisons
 
     @staticmethod
-    def _load_comparison_logits(path):
+    def _load_comparison_logits(path:str, lim:int):
         comparisons_logits = {}
         # load the information from text files into a single dictionary
         data = load_json(path)
@@ -88,6 +90,7 @@ class SystemLoader:
             comparisons_logits[ex_id] = output_logits
 
         comparisons_logits = {k: v for k, v in sorted(comparisons_logits.items())}
+
         return comparisons_logits
 
     #== Methods to Convert ===========================================================#

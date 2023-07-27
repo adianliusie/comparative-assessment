@@ -24,23 +24,28 @@ def main(
     output_path:str,
     dataset:str='sumevall',
     score_type:str='consistency',
-    prompt_id:int='c1',
+    prompt_id:int=None,
     shuffle:bool=True,
     comparative=False,
     max_len=None,
     device=None,
-    probs=False
+    probs=False,
+    num_comparisons=None
 ):
     print(output_path)
 
     #load prompt from default, or choose your own prompt
-    assert ('c' in prompt_id) == comparative
-    prompt_template = get_prompt_template(prompt_id, score_type)
-    if dataset == 'topicalchat':
-        prompt_template = prompt_template.replace('Summary', 'Response')
-        prompt_template = prompt_template.replace('summary', 'response')
-        prompt_template = prompt_template.replace('Passage', 'Dialogue')
-        prompt_template = prompt_template.replace('passage', 'dialogue')
+    if prompt_id:
+        assert ('c' in prompt_id) == comparative
+    
+        prompt_template = get_prompt_template(prompt_id, score_type)
+        if dataset == 'topicalchat':
+            prompt_template = prompt_template.replace('Summary', 'Response')
+            prompt_template = prompt_template.replace('summary', 'response')
+            prompt_template = prompt_template.replace('Passage', 'Dialogue')
+            prompt_template = prompt_template.replace('passage', 'dialogue')
+    else:
+        prompt_template = None
 
     # get input text data to feed to chatgpt
     data_handler = DataHandler(prompt_template, dataset=dataset)
@@ -59,8 +64,10 @@ def main(
     
     # set decoder_prefix (only used for prob mode) 
     decoder_prefix='Summary'
-    if (dataset == 'topicalchat') and (probs) and ('flant5' in system):
+    if (dataset == 'topicalchat') and (probs):
         decoder_prefix='Response'
+    elif (dataset in ['wi-train', 'wi-dev']) and (probs):
+        decoder_prefix='Text'
 
     # save experiment settings 
     info = {
@@ -69,7 +76,6 @@ def main(
         'system':system, 
         'dataset':dataset,
         'score_type':score_type,
-        'shuffle':shuffle,
         'comparative':comparative
     }                     
     info_path = f"{output_path}/info.json"
@@ -90,7 +96,11 @@ def main(
         done_ids = set(list(load_json(f"{system_output_path}/combined.json").keys()))
 
     # process all inputs to chatgpt
-    for idx in ids:
+    for k, idx in enumerate(ids):
+        # break early if sufficient comparisons have been done
+        if num_comparisons and (k + len(done_ids) > num_comparisons):
+            break
+
         ex = proc_inputs[idx]
         outpath = f"{system_output_path}/{ex.ex_id}.json"
 
@@ -100,11 +110,19 @@ def main(
         
         # get text response
         # print(ex.input_text)
-        if probs:
+
+        if system == 'bertscore':
+            response = interface.bert_score(
+                response=ex.response, 
+                reference=ex.reference
+            )
+
+        elif probs:
             response = interface.prompt_template_response(
                 input_text=ex.input_text, 
                 decoder_prefix=decoder_prefix
             )
+            
         else:
             response = interface.text_response(
                 input_text=ex.input_text, 
@@ -136,12 +154,14 @@ def generation_parser():
     
     parser.add_argument('--system', type=str, default='flant5-large', help='which transformer to use')
     parser.add_argument('--probs', action='store_true', help='whether prompt templates should be used')
-    parser.add_argument('--prompt-id', type=str, default='c1', help='which prompt to use')
+    parser.add_argument('--prompt-id', type=str, default=None, help='which prompt to use')
 
     parser.add_argument('--dataset', type=str, default='summeval', help='which evaluation dataset to use')
     parser.add_argument('--score-type', type=str, default='consistency', help='which score to use of the dataset')
     
     parser.add_argument('--max-len', type=int, default=10, help='number of maximum tokens to be generated')
+    parser.add_argument('--num-comparisons', type=int, default=None, help='number of comparisons to do for the dataset')
+
     parser.add_argument('--device', type=str, default=None, help='device to run experiments')
 
     parser.add_argument('--shuffle', action='store_true', help='whether to shuffling order of samples')

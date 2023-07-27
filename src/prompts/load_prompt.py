@@ -11,7 +11,8 @@ def get_prompt_template(prompt_id:str, score_type:str=None):
 
 def create_prompt(prompt_id, score_type):
     SCORE_TO_ADJECTIVE = {'consistency':'consistent', 'coherency':'coherent', 'fluency':'fluent', 'relevance':'relevant',
-                          'naturalness':'natural', 'continuity':'good a continuation', 'engagingness':'engaging'}
+                          'naturalness':'natural', 'continuity':'good a continuation', 'engagingness':'engaging',
+                          'grammar':'grammatically correct', 'overall':None}
     
     adjective = SCORE_TO_ADJECTIVE[score_type]
 
@@ -26,6 +27,13 @@ def create_prompt(prompt_id, score_type):
     elif prompt_id == 'c2': prompt_template = f"Passage:\n<context>\n\nSummary A: <A>\n\nSummary B: <B>\n\nWhich Summary is more {adjective} relative to the passage, Summary A or Summary B?"
     elif prompt_id == 'c3': prompt_template = f"<context>\n\nSummary A: <A>\n\nSummary B: <B>\n\nWhich Summary is more {adjective}, Summary A or Summary B? Output either Summary A or Summary B"
     elif prompt_id == 'c4': prompt_template = f"Assess the following two summaries given the corresponding passage, and determine which summary is more {adjective}.\n\nPassage:\n<context>\n\nSummary A: <A>\n\nSummary B: <B>\n\nWhich Summary is more {adjective}, Summary A or Summary B?"
+
+    #Prompts that don't take the context into account
+    elif prompt_id == 'wi-s1': prompt_template = f"<A>\n\nProvide a score between 1 and 10 that measures the text's quality"
+    elif prompt_id == 'wi-s2': prompt_template = f"Text:<A>\n\nScore the above text between 1 and 10"
+
+    elif prompt_id == 'wi-c1': prompt_template = f"Text A: <A>\n\nText B: <B>\n\nWhich text is better, Text A or Text B?"
+    elif prompt_id == 'wi-c2': prompt_template = f"Text A: <A>\n\nText B: <B>\n\nWhich text is of a higher quality, Text A or Text B? Output either Text A or Text B."
 
     prompt_template = prompt_template.replace('is more good', 'is better')
 
