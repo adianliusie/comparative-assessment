@@ -6,6 +6,8 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 MODEL_URLS = {
     'llama2-7b':'meta-llama/Llama-2-7b-hf',
     'llama2-13b':'meta-llama/Llama-2-13b-hf',
+    'llama2-7b-chat':'meta-llama/Llama-2-7b-chat-hf',
+    'llama2-13b-chat':'meta-llama/Llama-2-13b-chat-hf',
 }
 
 class Llama2Interface:
