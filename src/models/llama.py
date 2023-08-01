@@ -18,6 +18,7 @@ class Llama2Interface:
         self.to(device)
 
     def text_response(self, input_text, top_k:int=10, do_sample:bool=False, max_new_tokens:int=None):
+        input_text = input_text + '\n\nAnswer:'
         inputs = self.tokenizer(input_text, return_tensors="pt").to(self.device)
 
         #print(input_text)
@@ -32,7 +33,12 @@ class Llama2Interface:
         )
 
         output_tokens = output[0]
-        output_text = self.tokenizer.decode(output_tokens, skip_special_tokens=True).strip()
+        
+        input_tokens = inputs.input_ids[0]
+        new_tokens = output_tokens[len(input_tokens):]
+        assert torch.equal(output_tokens[:len(input_tokens)], input_tokens)
+        
+        output_text = self.tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
         return SimpleNamespace(output_text=output_text)
     
     def to(self, device):
