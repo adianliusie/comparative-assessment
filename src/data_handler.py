@@ -30,7 +30,7 @@ class DataHandler:
                     response_A=response,
                     fact=fact
                 )
-                
+
                 # get prompt input text
                 input_text = self.fill_template(text_info) if self.prompt_template else None
 
@@ -42,7 +42,7 @@ class DataHandler:
                 ex = SimpleNamespace(
                     ex_id=ex_id,
                     input_text=input_text,
-                    label=label, 
+                    label=label,
                     response=response,
                     reference=getattr(doc, 'reference', None),
                 )
@@ -117,6 +117,8 @@ class DataHandler:
             documents = cls.load_summeval()[:20]
         elif dataset=='summeval-t':
             documents = cls.load_summeval()[:5]
+        elif dataset=='podcast':
+            documents = cls.load_podcast()
         elif dataset=='topicalchat':
             documents = cls.load_topicalchat()
         elif dataset=='webnlg':
@@ -192,11 +194,11 @@ class DataHandler:
                 grammar.append(value['grammar'])
                 semantics.append(value['semantics'])
                 triples = value['data'] # triples concatenated as string- same for all systems
-                
+
             context = f"The following are semantic triples of the form (subject|relation|object)\n\n{triples}"
             ex = SimpleNamespace(
                 context_id=str(k),
-                context=context, 
+                context=context,
                 responses=generated_texts,
                 scores={
                     'fluency': fluency,
@@ -226,12 +228,34 @@ class DataHandler:
 
         out = SimpleNamespace(
                 context_id='0',
-                context=None, 
-                responses=responses, 
+                context=None,
+                responses=responses,
                 scores={'overall':scores,
                         'detailed_raw':detailed_raw_scores,
                         'cefr_raw':raw_cefr,
                         'cefr':cefr}
         )
-        
         return [out]
+
+    @staticmethod
+    def load_podcast()->List[SimpleNamespace]:
+        podcast_data = load_dataset("potsawee/podcast_summary_assessment")['evaluation']
+        # splitting 3580 -> 179 * 20
+        podcast_179 = {}
+        score_mapping = {'B':0, 'F': 1, 'G': 2, 'E': 3} # Bad, Fair, Good, Excellent
+        for k, row in enumerate(podcast_data):
+            episode_id = row['episode_id']
+            if episode_id not in podcast_179:
+                podcast_179[episode_id] = SimpleNamespace(
+                    context_id=row['episode_id'],
+                    context=row['transcript'],
+                    responses=[],
+                    scores={'overall': []},
+                )
+            assert podcast_179[episode_id].context_id == row['episode_id'] # sanity check
+            assert podcast_179[episode_id].context == row['transcript'] # sanity check
+            podcast_179[episode_id].responses.append(row['summary'])
+            podcast_179[episode_id].scores['overall'].append(score_mapping[row['score']])
+        # dict to list
+        podcast_179 = [v for v in podcast_179.values()]
+        return podcast_179
