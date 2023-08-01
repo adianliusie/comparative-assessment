@@ -46,12 +46,11 @@ def corpus_prob_loss_fn(C, ranks, M=None, A_A=0.8):
 
 def prob_loss_fn(C, ranks, M=None):
     if M == None: M = _default_mask(C)
-
     C_r = ranks_to_comparisons(ranks)
 
     # Note that C is now a NxN tensor of log probs, s.t. C_ij = P(y_i > y_j)
     probs = C_r * C + (1-C_r) * (1-C)
-    print("check ordering convention of above line")
+    #print("check ordering convention of above line")
     return np.sum(probs*M)
 
 #== Search methods for finding ranks ==============================================================#
@@ -69,7 +68,6 @@ def brute_force(loss_fn, C, ranks, M=None, maxsize=10000):
         if loss < best_loss:
             best_loss = loss
             ranks = new_ranks.copy()
-            print(ranks, loss)
     return ranks
 
 def rand_search(loss_fn, C, ranks, M=None, maxsize=10000):
@@ -85,7 +83,6 @@ def rand_search(loss_fn, C, ranks, M=None, maxsize=10000):
         if loss < best_loss:
             best_loss = loss
             ranks = new_ranks.copy()
-            print(ranks, loss)
         k += 1
     return ranks
 
@@ -107,7 +104,6 @@ def greedy(loss_fn, C, ranks):
                 best_loss = loss
                 ranks = new_ranks.copy()
                 k = 0
-                print(ranks, loss)
             else:
                 k += 1
     return ranks
@@ -115,7 +111,7 @@ def greedy(loss_fn, C, ranks):
 #== Current Recipe ================================================================================#
 def find_optimal_ranks(C, loss='consistent'):
     if   loss == 'consistent': loss_fn=consistent_loss_fn
-    elif loss == 'consistent': loss_fn=prob_loss_fn
+    elif loss == 'probs': loss_fn=prob_loss_fn
 
     N = C.shape[0]
     ranks = list(range(N))

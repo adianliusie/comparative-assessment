@@ -52,7 +52,7 @@ def load_system(path:str, balanced:bool=False)->SystemLoader:
     if 'scoring' in path:
         system.load_ratings(path)
     elif 'probs' in path:
-        system.load_comparisons_logits(path, balanced=balanced)
+        system.load_comparisons_probs(path, balanced=balanced)
     else:
         system.load_comparisons(path)
     return system

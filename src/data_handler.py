@@ -191,15 +191,17 @@ class DataHandler:
                 fluency.append(value['fluency'])
                 grammar.append(value['grammar'])
                 semantics.append(value['semantics'])
-            
+                triples = value['data'] # triples concatenated as string- same for all systems
+                
+            context = f"The following are semantic triples of the form (subject|relation|object)\n\n{triples}"
             ex = SimpleNamespace(
                 context_id=str(k),
-                context=value['data'], # triples concatenated as string
+                context=context, 
                 responses=generated_texts,
                 scores={
                     'fluency': fluency,
                     'grammar': grammar,
-                    'semantics': semantics,
+                    'semantic': semantics,
                 }
             )
             output.append(ex)
@@ -214,17 +216,22 @@ class DataHandler:
         data = [ex for json in jsons for ex in json]
 
         responses = [ex['text'] for ex in data]
-        raw_scores = [ex['cefr'] for ex in data]
+        detailed_raw_scores = [ex['cefr'] for ex in data]
 
-        cefr_to_scores = {cefr:k for k, cefr in enumerate(sorted(list(set(raw_scores))))}
-        scores = [cefr_to_scores[score] for score in raw_scores]
+        detailed_cefr_to_scores = {cefr:k for k, cefr in enumerate(sorted(list(set(detailed_raw_scores))))}
+        cefr_to_scores = {'A1':0, 'A2':1, 'B1':2, 'B2':3, 'C1':4, 'C2':5}
+        scores = [detailed_cefr_to_scores[score] for score in detailed_raw_scores]
+        raw_cefr = [score[:2] for score in detailed_raw_scores]
+        cefr = [cefr_to_scores[score] for score in raw_cefr]
 
         out = SimpleNamespace(
                 context_id='0',
                 context=None, 
                 responses=responses, 
                 scores={'overall':scores,
-                        'raw':raw_scores}
+                        'detailed_raw':detailed_raw_scores,
+                        'cefr_raw':raw_cefr,
+                        'cefr':cefr}
         )
         
         return [out]

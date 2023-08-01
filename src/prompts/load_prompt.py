@@ -12,7 +12,7 @@ def get_prompt_template(prompt_id:str, score_type:str=None):
 def create_prompt(prompt_id, score_type):
     SCORE_TO_ADJECTIVE = {'consistency':'consistent', 'coherency':'coherent', 'fluency':'fluent', 'relevance':'relevant',
                           'naturalness':'natural', 'continuity':'good a continuation', 'engagingness':'engaging',
-                          'grammar':'grammatically correct', 'overall':None}
+                          'grammar':'grammatically correct', 'overall':None, 'semantic':None}
     
     adjective = SCORE_TO_ADJECTIVE[score_type]
 
@@ -31,9 +31,14 @@ def create_prompt(prompt_id, score_type):
     #Prompts that don't take the context into account
     elif prompt_id == 'wi-s1': prompt_template = f"<A>\n\nProvide a score between 1 and 10 that measures the text's quality"
     elif prompt_id == 'wi-s2': prompt_template = f"Text:<A>\n\nScore the above text between 1 and 10"
-
     elif prompt_id == 'wi-c1': prompt_template = f"Text A: <A>\n\nText B: <B>\n\nWhich text is better, Text A or Text B?"
     elif prompt_id == 'wi-c2': prompt_template = f"Text A: <A>\n\nText B: <B>\n\nWhich text is of a higher quality, Text A or Text B? Output either Text A or Text B."
+
+    # special prompts for particular properties
+    elif prompt_id == 'sem-s1': prompt_template = f"<context>\n\nResponse: <A>\n\nProvide a score between 1 and 10 that measures how well the response captures the information of the semantic triples"
+    elif prompt_id == 'sem-s2': prompt_template = f"<context>\n\nResponse: <A>\n\Score the response out of 10 based on how well the response relates with the semantic triples"
+    elif prompt_id == 'sem-c1': prompt_template = f"<context>\n\nResponse A: <A>\n\nResponse B: <B>\n\nWhich Response is best aligns with the given semantic triples, Response A or Response B?"
+    elif prompt_id == 'sem-c2': prompt_template = f"<context>\n\nResponse A: <A>\n\nResponse B: <B>\n\nWhich Response captures the most information from the semantic triples, Response A or Response B?"
 
     prompt_template = prompt_template.replace('is more good', 'is better')
 

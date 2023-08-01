@@ -12,143 +12,113 @@ from src.data_handler import DataHandler
 class SystemLoader:
     def load_ratings(self, path):
         self.ratings = self._load_ratings(path)
-        self.comparisons = self.ratings_to_comparisons(self.ratings)
+        self.comparisons, self.comparisons_M  = self.ratings_to_comparisons(self.ratings)
     
     def load_comparisons(self, path, lim=None):
-        self.comparisons = self._load_comparisons(path, lim=lim)
-        self.ratings = self.comparisons_to_ratings(self.comparisons)
+        self.comparisons, self.comparisons_M = self._load_comparisons(path, lim=lim)
+        self.ratings = self.comparisons_to_ratings(self.comparisons, self.comparisons_M)
 
-    def load_comparisons_logits(self, path, lim=None, balanced=False):
-        comparison_logits = self._load_comparison_logits(path, lim=lim)
-        t = self.get_balanced_thresholds(comparison_logits) if balanced else None
-        self.comparisons = self.logits_to_comparisons(comparison_logits, t=t)
-        self.ratings = self.comparisons_to_ratings(self.comparisons)
+    def load_comparisons_probs(self, path, lim=None, balanced=False):
+        self.comparisons_probs, self.comparisons_M = self._load_comparison_probs(path, lim=lim)
+        t = self.get_balanced_thresholds(self.comparisons_probs, self.comparisons_M) if balanced else 0.5
+        self.comparisons = (self.comparisons_probs > t).astype(int)
+        self.ratings = self.comparisons_to_ratings(self.comparisons, self.comparisons_M)
 
     #== Load Files by category =======================================================#
     @staticmethod
     def _load_ratings(path)->Dict[str, Dict[str, float]]:        
-        ratings = defaultdict(dict)
-
         data = load_json(path)
 
+        ex_ids = [ex_id.split('-') for ex_id in data.keys()] # ex_id="docid-candid"
+        num_docs  = max([int(x[0]) for x in ex_ids]) + 1
+        num_cands = max([int(x[1]) for x in ex_ids]) + 1
+
+        ratings   = np.zeros((num_docs, num_cands))
+
         for ex_id, output in data.items():
-            output_text = output['output_text']
+            doc_id, sys_id = [int(i) for i in ex_id.split('-')]
 
             # extract numerical prediction
+            output_text = output['output_text']
             score = re.split(r'\D+',output_text)[0]
             score = int(score) if score.isdigit() else -1 
 
-            # save to dictionary
-            passage_id, summary_id = ex_id.split('-')
-            ratings[int(passage_id)][int(summary_id)] = score
-            
-        ratings = dict(ratings)
-        
+            ratings[doc_id, sys_id] = score
+
         # check how often the scores were invalid
-        fails = sum([(v==-1) for doc in ratings.values() for v in doc.values() ])
-        total = sum([1       for doc in ratings.values() for v in doc.values() ])
+        fails = np.sum(ratings==-1)
+        total = np.sum(ratings==ratings)
         #print(f"loaded ratings with {fails} failures out of {total}")
         return ratings
     
     @staticmethod
     def _load_comparisons(path:str, lim:int=None)->Dict[str, int]:
-        comparisons = {}
-        # load the information from text files into a single dictionary
         data = load_json(path)
 
+        ex_ids = [ex_id.split('-') for ex_id in data.keys()] # ex_id="docid-candid1-candid2"
+        num_docs  = max([x[0] for x in ex_ids]) + 1
+        num_cands = max([x[1] for x in ex_ids] + [x[2] for x in ex_ids]) + 1
+
+        comparisons = np.zeros((num_docs, num_cands, num_cands))
+        comparisons_M = np.zeros((num_docs, num_cands, num_cands))
+
         for ex_id, output in data.items():
+            doc_id, sys_id1, sys_id2 = [int(i) for i in ex_id.split('-')]
+
             output_text = output['output_text']
-            # determine which of A and B is preferred
             if (' A' in output_text) and (not ' B' in output_text):
-                score = 0
+                comparisons[doc_id, sys_id1, sys_id2] = 1
             elif (' B' in output_text) and (not ' A' in output_text):
-                score = 1
+                comparisons[doc_id, sys_id1, sys_id2] = 0
             else:
-                score = -1
-                
-            # save to dictionary
-            comparisons[ex_id] = score
+                comparisons[doc_id, sys_id1, sys_id2] = 0.5
+
+            comparisons_M[doc_id, sys_id1, sys_id2] = 1
         
         # check how often the scores were invalid
-        fails = sum([(v==-1) for v in comparisons.values()])
-        total = sum([1      for v in comparisons.values()])
-        print(f"loaded ratings with {fails} failures out of {total}")
+        fails = np.sum(comparisons==0.5)
+        total = np.sum(comparisons_M)
+        #print(f"loaded ratings with {fails} failures out of {total}")
         
-        comparisons = {k: v for k, v in sorted(comparisons.items())}
-        return comparisons
+        return comparisons, comparisons_M
 
     @staticmethod
-    def _load_comparison_logits(path:str, lim:int):
-        comparisons_logits = {}
-        # load the information from text files into a single dictionary
+    def _load_comparison_probs(path:str, lim:int):
         data = load_json(path)
 
-        #print('there is a fix in the code to ignore the neutral class')
+        response_ids = [ex_id.split('-') for ex_id in data.keys()] # ex_id="docid-candid1-candid2"
+        num_docs  = max([int(x[0]) for x in response_ids]) + 1
+        num_cands = max([int(x[1]) for x in response_ids] + [int(x[2]) for x in response_ids]) + 1
+
+        comparisons_probs = np.zeros((num_docs, num_cands, num_cands))
+        comparisons_M = np.zeros((num_docs, num_cands, num_cands))
 
         for ex_id, output in data.items():
-            output_logits = output['logits'][:2]
-            comparisons_logits[ex_id] = output_logits
+            doc_id, sys_id1, sys_id2 = [int(i) for i in ex_id.split('-')]
+            output_logits = output['logits']#[:2]
+            probs = scipy.special.softmax(output_logits, axis=0)
+            comparisons_probs[doc_id, sys_id1, sys_id2] = probs[0]
+            comparisons_M[doc_id, sys_id1, sys_id2] = 1
 
-        comparisons_logits = {k: v for k, v in sorted(comparisons_logits.items())}
-
-        return comparisons_logits
+        return comparisons_probs, comparisons_M
 
     #== Methods to Convert ===========================================================#
     @staticmethod
     def ratings_to_comparisons(ratings):
-        comparisons = defaultdict(dict)
-        
-        for passage_id in ratings:
-            passage_scores = ratings[passage_id]
-            N = len(passage_scores)
-            for i in range(N):
-                for j in range(N):
-                    if i==j: continue   
-                    score_1 = passage_scores[i]
-                    score_2 = passage_scores[j]
-
-                    # select the passage with the highest score
-                    if score_1 > score_2:   
-                        score = 0
-                    elif score_2 > score_1: 
-                        score = 1
-                    else:                   
-                        score = -1
-
-                    # append input to dictionary
-                    comparisons[f"{passage_id}-{i}-{j}"] = score
-                    
-        comparisons = {k: v for k, v in sorted(comparisons.items())}
-        return comparisons
+        comparisons = ratings[:, None, :] > ratings[:, :, None]
+        comparison_M = np.ones_like(comparisons)
+        return comparisons, comparison_M
 
     @staticmethod
-    def comparisons_to_ratings(comparisons):
-        ratings = defaultdict(dict)
-        
-        def increase_rating(passage_id:int, ex_id:int, value=1):
-            if ex_id not in ratings[passage_id]:
-                ratings[passage_id][ex_id] = 0
-            ratings[int(passage_id)][ex_id] += value
-            return 
-        
-        for ex_id, v in comparisons.items():
-            passage_id, ex_1_id, ex_2_id = ex_id.split('-')
-            passage_id, ex_1_id, ex_2_id = int(passage_id), int(ex_1_id), int(ex_2_id)
-            if v == -1:
-                increase_rating(passage_id, ex_1_id, value=0.5)
-                increase_rating(passage_id, ex_2_id, value=0.5)
-            elif v == 0:
-                increase_rating(passage_id, ex_1_id, value=1)
-                increase_rating(passage_id, ex_2_id, value=0)
-            elif v == 1:
-                increase_rating(passage_id, ex_1_id, value=0)
-                increase_rating(passage_id, ex_2_id, value=1)
-
-        return dict(ratings)
+    def comparisons_to_ratings(comparisons, comparisons_M):
+        wins = comparisons.sum(axis=-1) + (1-comparisons).sum(axis=-2)
+        games = comparisons_M.sum(axis=-1) + comparisons_M.sum(axis=-2)
+        win_ratio = wins/games
+        return win_ratio
 
     #== Methods dealing with prompt-based classifier =================================#
     @staticmethod
-    def logits_to_comparisons(comparisons_logits, t:np.ndarray=None):
+    def probs_to_comparisons(comparisons_logits, t:np.ndarray=None):
         if t is None: t=0
         comparisons = {}
         for ex_id, logits in comparisons_logits.items():
@@ -160,12 +130,8 @@ class SystemLoader:
         return comparisons
 
     @staticmethod
-    def get_balanced_thresholds(comparisons_logits):
-        logits_array = np.array(list(comparisons_logits.values()))
-
-        for t in np.arange(-5,5,0.01):
-            reweighted_logits = logits_array + np.array([[0,t]])
-            preds = np.argmax(reweighted_logits, axis=-1)
-            if np.mean(preds) >= 0.5:
+    def get_balanced_thresholds(comparison_probs, comparisons_M):
+        for t in np.arange(0,1,0.001):
+            if np.mean(comparison_probs[comparisons_M==1] < t) >= 0.5:
                 break 
         return t
