@@ -2,8 +2,8 @@ import os
 import argparse
 import pickle
 import random
+import re
 import openai
-import os
 
 from tqdm import tqdm
 from datetime import datetime
@@ -36,7 +36,7 @@ def main(
 
     #load prompt from default, or choose your own prompt
     if prompt_id:
-        assert ('c' in prompt_id) == comparative
+        assert bool(re.search(r'c\d+', prompt_id)) == comparative
 
         prompt_template = get_prompt_template(prompt_id, score_type)
         if dataset == 'topicalchat':
@@ -127,7 +127,8 @@ def main(
             response = interface.text_response(
                 input_text=ex.input_text,
                 do_sample=False,
-                max_new_tokens=max_len
+                max_new_tokens=max_len,
+                mid_string="Summary: " # change this according to the prompt -- Podcast dataset & LLaMA only
             )
 
         #print(response)
@@ -169,27 +170,6 @@ def generation_parser():
     parser.add_argument('--comparative', type="bool", default=True, help='whether to do comparative evaluation')
 
     return parser
-
-# def get_default_template(prompt_num, comparative, score_type):
-#     if prompt_num == 'c1':
-#         assert (comparative == True) and (score_type=='consistency')
-#         prompt_template = "Assess the following two summaries given the corresponding article, and determine which passage is more consistent.\n\n<context>\n\nSummary A: <summary_1>\n\nSummary B: <summary_2>\n\nWhich Summary is more consistent relative to the passage, Summary A or Summary B?\n\nAnswer:"
-#     elif prompt_num == 'c2':
-#         assert (comparative == True) and (score_type=='consistency')
-#         prompt_template = "Determine which of the two summaries is more consistent given the following article.\n\n<context>\n\nSummary A: <summary_1>\n\nSummary B: <summary_2>\n\nWhich Summary is more consistent relative to the passage, Summary A or Summary B?\n\nAnswer:"
-#     elif prompt_num == 'c3':
-#         assert (comparative == True) and (score_type=='consistency')
-#         prompt_template = "Assess the following two summaries given the corresponding article, and determine which passage is more consistent. Note that consistency measures how much information included in the summary is present in the source article.\n\n<context>\n\nSummary A: <summary_1>\n\nSummary B: <summary_2>\n\nWhich Summary is more consistent relative to the passage, Summary A or Summary B?\n\nAnswer:"
-#     elif prompt_num == 'r1':
-#         assert (comparative == False) and (score_type=='consistency')
-#         prompt_template = "Score the following summary given the corresponding article with respect to consistency from 1 to 10.\n\nSummary:<summary_1>\n\nSource Article:<context>\n\nMarks:"
-#     elif prompt_num == 'r2':
-#         assert (comparative == False) and (score_type=='consistency')
-#         prompt_template = "Determine a score between 1 and 100 for how consistent the following summary is with respect to the article\n\nSource Article:<context>\n\nSummary:<summary_1>\n\nScore:"
-#     elif prompt_num == 'r3':
-#         assert (comparative == False) and (score_type=='consistency')
-#         prompt_template = "Score the following summary given the corresponding article with respect to consistency from 1 to 10. Note that consistency measures how much information included in the summary is present in the source article. 10 points indicate the summary contains only statements that are entailed by the source document\n\nSummary:<summary_1>\n\nSource Article:<context>\n\nMarks:"
-#     return prompt_template
 
 if __name__ == "__main__":
     parser = generation_parser()

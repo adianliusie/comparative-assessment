@@ -10,9 +10,9 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 class ChatGptInterface:
     def __init__(self):
         pass
-    
+
     @classmethod
-    def text_response(cls, input_text, top_k:int=None, do_sample:bool=False, max_new_tokens:int=None):
+    def text_response(cls, input_text, top_k:int=None, do_sample:bool=False, max_new_tokens:int=None, **kwargs):
         input_text = input_text + '\n\nAnswer:'
         temp = 1 if do_sample else 0
         k = 0

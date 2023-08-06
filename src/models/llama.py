@@ -19,14 +19,22 @@ class Llama2Interface:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.to(device)
 
-    def text_response(self, input_text, top_k:int=10, do_sample:bool=False, max_new_tokens:int=None):
+    def text_response(
+        self,
+        input_text,
+        top_k:int=10,
+        do_sample:bool=False,
+        max_new_tokens:int=None,
+        mid_string:str="\n\nSummary A: ", # middle of the string splitting between context and summary
+        **kwargs,
+    ):
         input_text = input_text + '\n\nAnswer:'
         # inputs = self.tokenizer(input_text, return_tensors="pt").to(self.device)
 
          # quick fix to make input text being short than 4k
         LLAMA_MAX_LEN = 4000 # just slightly below 4096 for generated tokens
-        input_pair = input_text.split("\n\nSummary A: ")
-        input_pair[1] = "\n\nSummary A: " + input_pair[1]
+        input_pair = input_text.split(mid_string)
+        input_pair[1] = mid_string + input_pair[1]
         inputs_1 = self.tokenizer(input_pair[1], return_tensors="pt", add_special_tokens=False) # will manually add <s> (ID=1)
         inputs_1_len = inputs_1.input_ids.shape[1]
         inputs_0 = self.tokenizer(input_pair[0], return_tensors="pt", truncation=True, max_length=LLAMA_MAX_LEN-inputs_1_len, add_special_tokens=False) # will manually add <s> (ID=1)
