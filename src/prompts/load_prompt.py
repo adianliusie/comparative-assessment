@@ -12,7 +12,7 @@ def get_prompt_template(prompt_id:str, score_type:str=None):
 def create_prompt(prompt_id, score_type):
     SCORE_TO_ADJECTIVE = {'consistency':'consistent', 'coherency':'coherent', 'fluency':'fluent', 'relevance':'relevant',
                           'naturalness':'natural', 'continuity':'good a continuation', 'engagingness':'engaging',
-                          'grammar':'grammatically correct', 'overall':None, 'semantic':None, 'good': 'good'}
+                          'grammar':'grammatically correct', 'overall':'good', 'semantic':None, 'good': 'good'}
 
     adjective = SCORE_TO_ADJECTIVE[score_type]
 

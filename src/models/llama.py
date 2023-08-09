@@ -17,7 +17,10 @@ class Llama2Interface:
         self.model = AutoModelForCausalLM.from_pretrained(system_url)
         if not device:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if device == 'cuda':
+            self.model = self.model.half()
         self.to(device)
+        self.device = device
 
     def text_response(
         self,
@@ -39,12 +42,12 @@ class Llama2Interface:
         inputs_1_len = inputs_1.input_ids.shape[1]
         inputs_0 = self.tokenizer(input_pair[0], return_tensors="pt", truncation=True, max_length=LLAMA_MAX_LEN-inputs_1_len, add_special_tokens=False) # will manually add <s> (ID=1)
         input_ids_concat = torch.cat([torch.tensor([[1]]), inputs_0.input_ids, inputs_1.input_ids], dim=-1)
-        token_type_ids_concat = torch.cat([torch.tensor([[0]]), inputs_0.token_type_ids, inputs_1.token_type_ids], dim=-1).to(self.device)
+        # token_type_ids_concat = torch.cat([torch.tensor([[0]]), inputs_0.token_type_ids, inputs_1.token_type_ids], dim=-1).to(self.device)
         attention_mask_concat = torch.cat([torch.tensor([[1]]), inputs_0.attention_mask, inputs_1.attention_mask], dim=-1).to(self.device)
 
         output = self.model.generate(
-            input_ids=input_ids_concat,
-            attention_mask=attention_mask_concat,
+            input_ids=input_ids_concat.to(self.device),
+            attention_mask=attention_mask_concat.to(self.device),
             top_k=top_k,
             do_sample=do_sample,
             max_new_tokens=max_new_tokens,

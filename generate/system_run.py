@@ -124,11 +124,16 @@ def main(
             )
 
         else:
+            if comparative:
+                mid_string = "\n\nSummary A: "
+            else:
+                mid_string="Summary: "
+
             response = interface.text_response(
                 input_text=ex.input_text,
                 do_sample=False,
                 max_new_tokens=max_len,
-                mid_string="Summary: " # change this according to the prompt -- Podcast dataset & LLaMA only
+                mid_string=mid_string # change this according to the prompt -- Podcast dataset & LLaMA only
             )
 
         #print(response)
