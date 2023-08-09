@@ -56,8 +56,8 @@ class SystemLoader:
         data = load_json(path)
 
         ex_ids = [ex_id.split('-') for ex_id in data.keys()] # ex_id="docid-candid1-candid2"
-        num_docs  = max([x[0] for x in ex_ids]) + 1
-        num_cands = max([x[1] for x in ex_ids] + [x[2] for x in ex_ids]) + 1
+        num_docs  = max([int(x[0]) for x in ex_ids]) + 1
+        num_cands = max([int(x[1]) for x in ex_ids] + [int(x[2]) for x in ex_ids]) + 1
 
         comparisons = np.zeros((num_docs, num_cands, num_cands))
         comparisons_M = np.zeros((num_docs, num_cands, num_cands))
@@ -78,7 +78,7 @@ class SystemLoader:
         # check how often the scores were invalid
         fails = np.sum(comparisons==0.5)
         total = np.sum(comparisons_M)
-        #print(f"loaded ratings with {fails} failures out of {total}")
+        print(f"loaded ratings with {fails} failures out of {total}")
         
         return comparisons, comparisons_M
 

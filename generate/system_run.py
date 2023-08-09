@@ -32,8 +32,6 @@ def main(
     probs=False,
     num_comparisons=None
 ):
-    print(output_path)
-
     #load prompt from default, or choose your own prompt
     if prompt_id:
         assert ('c' in prompt_id) == comparative
@@ -46,6 +44,16 @@ def main(
             prompt_template = prompt_template.replace('passage', 'dialogue')
     else:
         prompt_template = None
+    
+    if system in ['llama2-7b-chat', 'llama2-13b-chat', 'chatgpt']:
+        if comparative:
+            prompt_template += '\n\nAnswer:'
+        else:
+            prompt_template += '\n\nScore:'
+
+    # print path and template
+    print('-'*50, '\n', output_path)
+    print('-'*50, '\n', prompt_template, '\n', '-'*50)
 
     # get input text data to feed to chatgpt
     data_handler = DataHandler(prompt_template, dataset=dataset)

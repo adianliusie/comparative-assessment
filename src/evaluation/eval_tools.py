@@ -20,7 +20,7 @@ class Evaluater:
         num_docs  = max([int(x[0]) for x in ex_ids]) + 1
         num_cands = max([int(x[1]) for x in ex_ids]) + 1
 
-        comparisons = np.zeros((num_docs, num_cands, num_cands))
+        comparisons = -1*np.ones((num_docs, num_cands, num_cands))
         for ex in data:
             doc_id, sys_id1, sys_id2 = [int(i) for i in ex.ex_id.split('-')]
             comparisons[doc_id, sys_id1, sys_id2] = ex.label
@@ -97,6 +97,11 @@ class Evaluater:
         return 100*pearson
     
     #== Miscellaneous ==============================================================================#
+    def reliability_plot(comparison_probs, labels):
+        pass
+    
+    
+    
     def scores_to_class(ratings, labels, thresh=None, K=None):
         """given scores and true labels, finds optimal tresholds that split the classes"""
         assert len(ratings) == len(labels) == 1, "only implemented for grading exams"

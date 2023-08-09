@@ -13,7 +13,6 @@ class ChatGptInterface:
     
     @classmethod
     def text_response(cls, input_text, top_k:int=None, do_sample:bool=False, max_new_tokens:int=None):
-        input_text = input_text + '\n\nAnswer:'
         temp = 1 if do_sample else 0
         k = 0
         while k < 3:

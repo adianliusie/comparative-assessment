@@ -27,11 +27,11 @@ def comparatisons_to_tensors(comparisons)->Tuple[np.ndarray, np.ndarray]:
     return C_tensor, M_tensor
 
 #== Analytical Scoring Methods of going from comparison matrix to ranks ===========================#
-def win_ratio(C, M):  
-    C = C*M  
-    M = M + M.T
-    x = np.sum(C, axis=1)/np.sum(M, axis=1)
-    return x
+def win_ratio(C_tensor, M_tensor):  
+    wins = (M_tensor*C_tensor).sum(axis=-1) + (M_tensor*(1-C_tensor)).sum(axis=-2)
+    games = M_tensor.sum(axis=-1) + M_tensor.sum(axis=-2)
+    win_ratio = wins/games
+    return win_ratio
 
 def colley_scoring(C, M):    
     C = C*M
