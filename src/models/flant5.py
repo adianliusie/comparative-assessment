@@ -23,21 +23,21 @@ class FlanT5Interface:
         self.to(device)
 
         # set up args for prompt template
-        self.decoder_ids = False 
-        self.probs_setup = False 
+        self.decoder_ids = False
+        self.probs_setup = False
 
     def to(self, device):
         self.device = device
         self.model.to(self.device)
 
     #== Output generation methods =================================================================#
-    def text_response(self, input_text, top_k:int=10, do_sample:bool=False, max_new_tokens:int=None):
+    def text_response(self, input_text, top_k:int=10, do_sample:bool=False, max_new_tokens:int=None, **kwargs):
         inputs = self.tokenizer(input_text, return_tensors="pt").to(self.device)
 
         #print(input_text)
         #import time; time.sleep(2)
         output = self.model.generate(
-            input_ids=inputs['input_ids'], 
+            input_ids=inputs['input_ids'],
             attention_mask=inputs['attention_mask'],
             top_k=top_k,
             do_sample=do_sample,
@@ -48,7 +48,7 @@ class FlanT5Interface:
         output_tokens = output[0]
         output_text = self.tokenizer.decode(output_tokens, skip_special_tokens=True).strip()
         return SimpleNamespace(output_text=output_text)
-    
+
     def prompt_template_response(self, input_text, decoder_prefix=None):
         if not hasattr(self, 'label_ids') or (decoder_prefix != self.decoder_prefix):
             self.set_up_prompt_classifier(decoder_prefix)
@@ -65,7 +65,7 @@ class FlanT5Interface:
             attention_mask=inputs.attention_mask,
             decoder_input_ids=self.decoder_input_ids
         )
-        
+
         vocab_logits = output.logits[:,-1]
         #self.debug_output_logits(input_text, vocab_logits)
 
@@ -77,11 +77,11 @@ class FlanT5Interface:
         output_text = pred_to_output[pred]
 
         return SimpleNamespace(
-            output_text=output_text, 
+            output_text=output_text,
             logits=[float(i) for i in class_logits],
             raw_probs=[float(i) for i in raw_class_probs]
         )
-    
+
     def debug_output_logits(self, input_text, logits):
         # Debug function to see what outputs would be
         indices = logits.topk(k=5).indices[0]
@@ -112,15 +112,15 @@ class FlanT5Interface:
         if self.decoder_prefix:
             # repeat template bsz times
             decoder_input_ids = self.tokenizer(
-                [self.decoder_prefix for _ in range(bsz)], 
+                [self.decoder_prefix for _ in range(bsz)],
                 return_tensors="pt",
             ).input_ids
-            
+
             # add start token
             decoder_input_ids = self.model._shift_right(decoder_input_ids)
         else:
             # set input to start of sentence token
             decoder_input_ids = self.model.config.decoder_start_token_id * torch.ones(bsz, 1, dtype=torch.long)
-        
+
         decoder_input_ids = decoder_input_ids.to(self.device)
         return decoder_input_ids

@@ -9,7 +9,7 @@ from tqdm import tqdm
 from datetime import datetime
 
 from src.data_handler import DataHandler
-from src.utils.general import save_json, load_json
+from src.utils.general import save_json, load_json, load_pickle
 from src.models import load_interface
 from src.prompts.load_prompt import get_prompt_template
 from src.utils.post_processing import save_combined_json, delete_leftover_files
@@ -26,11 +26,11 @@ def main(
     score_type:str='consistency',
     prompt_id:int=None,
     shuffle:bool=True,
-    comparative=False,
-    max_len=None,
-    device=None,
-    probs=False,
-    num_comparisons=None
+    comparative:bool=False,
+    max_len:int=None,
+    device:str=None,
+    probs:bool=False,
+    num_comparisons:int=None
 ):
     #load prompt from default, or choose your own prompt
     if prompt_id:
@@ -42,6 +42,10 @@ def main(
             prompt_template = prompt_template.replace('summary', 'response')
             prompt_template = prompt_template.replace('Passage', 'Dialogue')
             prompt_template = prompt_template.replace('passage', 'dialogue')
+        if dataset == 'podcast':
+            prompt_template = prompt_template.replace('Passage', 'Podcast')
+            prompt_template = prompt_template.replace('passage', 'podcast')
+
     else:
         prompt_template = None
     
@@ -56,11 +60,19 @@ def main(
     print('-'*50, '\n', prompt_template, '\n', '-'*50)
 
     # get input text data to feed to chatgpt
-    data_handler = DataHandler(prompt_template, dataset=dataset)
-    if comparative:
-        proc_inputs = data_handler.comparative_texts(score_type)
+    if dataset=='podcast':
+        CACHE_PATH = '/rds/project/rds-8YSp2LXTlkY/experiments/al826/comp_eval/cache/'
+        if comparative:
+            proc_inputs = load_pickle(f"{CACHE_PATH}/podcast-comparative-{prompt_id}.pk")
+        else:
+            proc_inputs = load_pickle(f"{CACHE_PATH}/podcast-scoring-{prompt_id}.pk")
+
     else:
-        proc_inputs = data_handler.scoring_texts(score_type)
+        data_handler = DataHandler(prompt_template, dataset=dataset)
+        if comparative:
+            proc_inputs = data_handler.comparative_texts(score_type)
+        else:
+            proc_inputs = data_handler.scoring_texts(score_type)
 
     # create directory if not already existing
     system_output_path = f"{output_path}/outputs"
@@ -84,8 +96,10 @@ def main(
         'system':system, 
         'dataset':dataset,
         'score_type':score_type,
-        'comparative':comparative
-    }                     
+        'comparative':comparative,
+        'max_len':max_len
+    }             
+            
     info_path = f"{output_path}/info.json"
     if not os.path.isfile(info_path):
         save_json(info, info_path) 
@@ -115,15 +129,6 @@ def main(
         # skip outputs already computed
         if (os.path.isfile(outpath)) or (ex.ex_id in done_ids):
             continue
-        
-        # get text response
-        # print(ex.input_text)
-
-        if system == 'bertscore':
-            response = interface.bert_score(
-                response=ex.response, 
-                reference=ex.reference
-            )
 
         elif probs:
             response = interface.prompt_template_response(
@@ -138,9 +143,6 @@ def main(
                 max_new_tokens=max_len
             )            
 
-        #print(response)
-        #import time; time.sleep(2)
-
         # get and print generated text
         gen_text = response.output_text
         current_time = datetime.now().strftime('%H:%M:%S')
@@ -148,9 +150,6 @@ def main(
 
         # save output file
         save_json(response.__dict__, outpath)
-
-        # with open(outpath, "w") as f:
-        #     f.write(gen_text)
 
     save_combined_json(system_output_path)  
     delete_leftover_files(system_output_path)
@@ -177,36 +176,7 @@ def generation_parser():
     
     return parser
 
-# def get_default_template(prompt_num, comparative, score_type):
-#     if prompt_num == 'c1':
-#         assert (comparative == True) and (score_type=='consistency')
-#         prompt_template = "Assess the following two summaries given the corresponding article, and determine which passage is more consistent.\n\n<context>\n\nSummary A: <summary_1>\n\nSummary B: <summary_2>\n\nWhich Summary is more consistent relative to the passage, Summary A or Summary B?\n\nAnswer:"
-#     elif prompt_num == 'c2':
-#         assert (comparative == True) and (score_type=='consistency')
-#         prompt_template = "Determine which of the two summaries is more consistent given the following article.\n\n<context>\n\nSummary A: <summary_1>\n\nSummary B: <summary_2>\n\nWhich Summary is more consistent relative to the passage, Summary A or Summary B?\n\nAnswer:"
-#     elif prompt_num == 'c3':
-#         assert (comparative == True) and (score_type=='consistency')
-#         prompt_template = "Assess the following two summaries given the corresponding article, and determine which passage is more consistent. Note that consistency measures how much information included in the summary is present in the source article.\n\n<context>\n\nSummary A: <summary_1>\n\nSummary B: <summary_2>\n\nWhich Summary is more consistent relative to the passage, Summary A or Summary B?\n\nAnswer:"
-#     elif prompt_num == 'r1':
-#         assert (comparative == False) and (score_type=='consistency')
-#         prompt_template = "Score the following summary given the corresponding article with respect to consistency from 1 to 10.\n\nSummary:<summary_1>\n\nSource Article:<context>\n\nMarks:"  
-#     elif prompt_num == 'r2':
-#         assert (comparative == False) and (score_type=='consistency')
-#         prompt_template = "Determine a score between 1 and 100 for how consistent the following summary is with respect to the article\n\nSource Article:<context>\n\nSummary:<summary_1>\n\nScore:"  
-#     elif prompt_num == 'r3':
-#         assert (comparative == False) and (score_type=='consistency')
-#         prompt_template = "Score the following summary given the corresponding article with respect to consistency from 1 to 10. Note that consistency measures how much information included in the summary is present in the source article. 10 points indicate the summary contains only statements that are entailed by the source document\n\nSummary:<summary_1>\n\nSource Article:<context>\n\nMarks:"  
-#     return prompt_template
-
 if __name__ == "__main__":
     parser = generation_parser()
     kwargs = vars(parser.parse_args())
     main(**kwargs)
-
-    # for counter in range(1, 5):
-    #     try:
-    #         main(**kwargs)
-    #     except openai.error.RateLimitError:
-    #         print("openai.error.RateLimitError... #{}".format(counter))
-    #         print("restart in 10 seconds")
-    #         time.sleep(10)

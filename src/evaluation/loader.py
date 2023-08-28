@@ -9,6 +9,16 @@ from typing import Dict
 from src.utils.general import load_text_line, load_json
 from src.data_handler import DataHandler
 
+# def fix_podcast_keys(data):
+#     new_data = {}
+#     context_ids = list(set([k.split('-')[0] for k in data.keys()]))
+#     context_to_int = {old_id:str(k) for k, old_id in enumerate(context_ids)}
+#     for key in data:
+#         old_id = key.split('-')[0]
+#         new_id = context_to_int[old_id]
+#         new_data[key.replace(old_id, new_id)] = data[key]
+#     return new_data
+    
 class SystemLoader:
     def load_ratings(self, path):
         self.ratings = self._load_ratings(path)
@@ -41,7 +51,7 @@ class SystemLoader:
             # extract numerical prediction
             output_text = output['output_text']
             score = re.split(r'\D+',output_text)[0]
-            score = int(score) if score.isdigit() else -1 
+            score = int(score) if score.isdigit() else -1
 
             ratings[doc_id, sys_id] = score
 
@@ -135,3 +145,4 @@ class SystemLoader:
             if np.mean(comparison_probs[comparisons_M==1] < t) >= 0.5:
                 break 
         return t
+    

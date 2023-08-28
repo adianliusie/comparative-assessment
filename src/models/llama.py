@@ -22,6 +22,7 @@ class Llama2Interface:
         if device == 'cuda':
             self.model = self.model.half()
         self.to(device)
+        self.device = device
 
     def to(self, device):
         self.device = device
@@ -30,8 +31,6 @@ class Llama2Interface:
     def text_response(self, input_text, top_k:int=10, do_sample:bool=False, max_new_tokens:int=None):
         inputs = self.tokenizer(input_text, return_tensors="pt").to(self.device)
 
-        #print(input_text)
-        #import time; time.sleep(2)
         output = self.model.generate(
             input_ids=inputs['input_ids'], 
             attention_mask=inputs['attention_mask'],
@@ -57,10 +56,11 @@ class Llama2Interface:
         input_text = input_text + f" {decoder_prefix}"
         inputs = self.tokenizer(input_text, return_tensors="pt").to(self.device)
 
-        output = self.model(
-            input_ids=inputs.input_ids,
-            attention_mask=inputs.attention_mask,
-        )
+        with torch.no_grad():
+            output = self.model(
+                input_ids=inputs.input_ids,
+                attention_mask=inputs.attention_mask,
+            )
         
         vocab_logits = output.logits[:,-1]
         #self.debug_output_logits(input_text, vocab_logits)
@@ -133,4 +133,3 @@ class Llama2Interface:
         if any([len(i)>1 for i in label_ids]):
             print('warning: some label words are tokenized to multiple words')
         self.label_ids = [int(self.tokenizer(word, add_special_tokens=False).input_ids[0]) for word in label_words]
-

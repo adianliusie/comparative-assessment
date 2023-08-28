@@ -6,13 +6,15 @@ from datasets import load_dataset
 from types import SimpleNamespace
 from typing import List
 from functools import lru_cache
+from tqdm import tqdm
 
 from .utils.general import load_json_files
 
 class DataHandler:
-    def __init__(self, prompt_template:str, dataset:str='summeval'):
+    def __init__(self, prompt_template:str, dataset:str='summeval', max_input_len:int=None):
         self.prompt_template = prompt_template
         self.documents = self.load_data(dataset)
+        self.max_len = max_input_len
 
     def scoring_texts(self, score_type):
         outputs = []
@@ -30,7 +32,7 @@ class DataHandler:
                     response_A=response,
                     fact=fact
                 )
-                
+
                 # get prompt input text
                 input_text = self.fill_template(text_info) if self.prompt_template else None
 
@@ -42,7 +44,7 @@ class DataHandler:
                 ex = SimpleNamespace(
                     ex_id=ex_id,
                     input_text=input_text,
-                    label=label, 
+                    label=label,
                     response=response,
                     reference=getattr(doc, 'reference', None),
                 )
@@ -96,8 +98,6 @@ class DataHandler:
 
     def fill_template(self, text_info):
         text = self.prompt_template
-        if '<context>' in text:
-            text = text.replace('<context>', text_info.context)
         if '<A>' in text:
             text = text.replace('<A>', text_info.response_A)
         if '<B>' in text:
@@ -106,6 +106,16 @@ class DataHandler:
             text = text.replace('<topic>', text_info.topic)
         if '<fact>' in text:
             text = text.prompt_template.replace("<fact>", text_info.fact)
+
+        # truncate context if necessary
+        if self.max_len: 
+            num_ctx_tokens = self.max_len - len(self.tokenizer(text).input_ids)
+            ctx_tokens = self.tokenizer(text_info.context).input_ids[:num_ctx_tokens]
+            text_info.context = self.tokenizer.decode(ctx_tokens)
+            
+        if '<context>' in text:
+            text = text.replace('<context>', text_info.context)
+
         return text
 
     #== Data Loading Methods ===========================================================#
@@ -117,6 +127,8 @@ class DataHandler:
             documents = cls.load_summeval()[:20]
         elif dataset=='summeval-t':
             documents = cls.load_summeval()[:5]
+        elif dataset=='podcast':
+            documents = cls.load_podcast()
         elif dataset=='topicalchat':
             documents = cls.load_topicalchat()
         elif dataset=='webnlg':
@@ -187,23 +199,32 @@ class DataHandler:
         for k, row in data.items():
             generated_texts, fluency, grammar, semantics = [], [], [], []
             for system, value in row.items():
-                generated_texts.append(value['text'])
-                fluency.append(value['fluency'])
-                grammar.append(value['grammar'])
-                semantics.append(value['semantics'])
-                triples = value['data'] # triples concatenated as string- same for all systems
+                generated_texts, fluency, grammar, semantics = [], [], [], []
+                bleu, meteor, ter = [], [], []
+                for system, value in row.items():
+                    generated_texts.append(value['text'])
+                    fluency.append(value['fluency'])
+                    grammar.append(value['grammar'])
+                    semantics.append(value['semantics'])
+                    bleu.append(value['bleu'])
+                    meteor.append(value['meteor'])
+                    ter.append(value['ter'])
+                    triples = value['data'] # triples concatenated as string- same for all systems
                 
-            context = f"The following are semantic triples of the form (subject|relation|object)\n\n{triples}"
-            ex = SimpleNamespace(
-                context_id=str(k),
-                context=context, 
-                responses=generated_texts,
-                scores={
-                    'fluency': fluency,
-                    'grammar': grammar,
-                    'semantic': semantics,
-                }
-            )
+                context = f"The following are semantic triples of the form (subject|relation|object)\n\n{triples}"
+                ex = SimpleNamespace(
+                    context_id=str(k),
+                    context=context, 
+                    responses=generated_texts,
+                    scores={
+                        'fluency': fluency,
+                        'grammar': grammar,
+                        'semantic': semantics,
+                        'bleu': bleu,
+                        'meteor': meteor,
+                        'ter': ter
+                    }
+                )
             output.append(ex)
         return output
 
@@ -226,12 +247,50 @@ class DataHandler:
 
         out = SimpleNamespace(
                 context_id='0',
-                context=None, 
-                responses=responses, 
+                context=None,
+                responses=responses,
                 scores={'overall':scores,
                         'detailed_raw':detailed_raw_scores,
                         'cefr_raw':raw_cefr,
                         'cefr':cefr}
         )
-        
         return [out]
+
+    @staticmethod
+    def load_podcast()->List[SimpleNamespace]:
+        podcast_data = load_dataset("potsawee/podcast_summary_assessment")['evaluation']
+        system_ids = ['R1'] + [f"E{k}" for k in range(1,4)] + [f"A{k}" for k in range(1,17)]
+        system2id = {v:k for k, v in enumerate(system_ids)}
+
+        episodes = set(row['episode_id'] for row in podcast_data)
+        episode2id = {v:str(k) for k, v in enumerate(episodes)}
+
+        # splitting 3580 -> 179 * 20
+        podcast_179 = {}
+        score_mapping = {'B':0, 'F': 1, 'G': 2, 'E': 3} # Bad, Fair, Good, Excellent
+        for row in podcast_data:
+            episode_id = row['episode_id']
+            system_id = row['system_id']
+            if episode_id not in podcast_179:
+                podcast_179[episode_id] = SimpleNamespace(
+                    context_id=episode2id[row['episode_id']],
+                    #context_id=row['episode_id'],
+                    context=row['transcript'],
+                    responses=[None for _ in range(20)],
+                    scores={'overall': [None for _ in range(20)]},
+                )
+            # assert podcast_179[episode_id].context_id == row['episode_id'] # sanity check
+            # assert podcast_179[episode_id].context == row['transcript'] # sanity check
+            podcast_179[episode_id].responses[system2id[system_id]] = row['summary']
+            podcast_179[episode_id].scores['overall'][system2id[system_id]] = score_mapping[row['score']]
+
+        podcast_179 = [v for v in podcast_179.values()]
+        return podcast_179
+    
+    #== Temporary tokenizer for truncating inputs =================================================#
+    @property
+    def tokenizer(self):
+        if not hasattr(self, '_tokenizer'):
+            from transformers import  AutoTokenizer
+            self._tokenizer = AutoTokenizer.from_pretrained('meta-llama/Llama-2-7b-hf')
+        return self._tokenizer
