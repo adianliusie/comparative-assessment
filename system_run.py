@@ -15,9 +15,6 @@ from src.prompts.load_prompt import get_prompt_template
 from src.utils.post_processing import save_combined_json, delete_leftover_files
 
 import time
-# python system_run.py --output-path output_texts/falcon-7b/summeval-consistency/prompt_c1 --system falcon-7b --dataset summeval-s --score consistency --prompt-id c1 --shuffle --comparative
-# python system_run.py --output-path output_texts/falcon-7b/summeval-consistency/prompt_c1 --system falcon-7b --dataset summeval-s --score-type consistency --prompt-id comparative-1 --shuffle --comparative
-# python system_run.py --output-path output_texts2/chatgpt/summeval-relevance/comparative-1 --system chatgpt --dataset summeval-s --score-type relevance --prompt-id comparative-1 --shuffle --comparative
 
 def main(
     system:str,
