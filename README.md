@@ -23,7 +23,7 @@ Arguments:
 - `system` selects the LLM used as the backbone for comparative assessment 
 - `dataset` is used to specify the dataset to evaluate. 
 - `score-type` defines the attribute to assess. 
-- `prompt-id` selects the quality attribute to assess. comparative prompts begin with `c`, prompt scoring with `s`
+- `prompt-id` selects the attribute to assess. Comparative prompts begin with `c`, prompt scoring with `s`
 - `output-path` defines where the outputs should be saved. 
 - `shuffle` is used to shuffle the ordering of examples (for parallelising generation) 
 - `comparative` is a flag to specify that comparative assessment should be used (if omitted, prompt-scoring assumed)
